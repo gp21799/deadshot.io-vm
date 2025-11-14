@@ -5,75 +5,80 @@
 <title>Play Deadshot.io</title>
 <style>
 body, html {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
+margin: 0;
+padding: 0;
+height: 100%;
+width: 100%;
+overflow: hidden;
 }
 iframe {
-  border: none;
-  width: 100vw;
-  height: 100vh;
-  display: block;
+border: none;
+width: 100vw;
+height: 100vh;
+display: block;
 }
 
-/* Very small FPS counter (bottom-right) */
-#fps-counter {
+/* FPS meter styles (small, centered at the top, non-interactive) */
+#fps-meter {
   position: fixed;
-  right: 8px;
-  bottom: 8px;
-  background: rgba(0,0,0,0.56);
-  color: #7CFC00;
-  font-family: monospace;
-  font-size: 11px;
-  padding: 3px 6px;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 999999;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  padding: 4px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Segoe UI Mono", monospace;
+  font-size: 13px;
   border-radius: 6px;
-  z-index: 2147483647; /* ensure it's above other content */
-  pointer-events: none; /* don't block taps/clicks */
+  box-shadow: 0 1px 6px rgba(0,0,0,0.5);
+  pointer-events: none; /* allow clicks to pass through to the iframe */
   user-select: none;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.6);
-  opacity: 0.92;
-  transition: opacity .2s;
-  line-height: 1;
+  min-width: 72px;
+  text-align: center;
+  opacity: 0.95;
 }
-#fps-counter.hidden { opacity: 0; pointer-events: none; }
 </style>
 </head>
 <body>
 <iframe src="https://deadshot.io" title="Deadshot.io Game"></iframe>
 
-<!-- Added: very small FPS counter. No other behavior or fullscreen code changed. -->
-<div id="fps-counter" aria-hidden="true">-- FPS</div>
+<!-- FPS meter overlay (non-intrusive, centered top) -->
+<div id="fps-meter">-- FPS</div>
+
 <script>
-(function(){
-  const el = document.getElementById('fps-counter');
-  if (!el) return;
+(function() {
+  const el = document.getElementById('fps-meter');
 
+  let lastTime = performance.now();
+  let frameCount = 0;
   let lastUpdate = performance.now();
-  let frames = 0;
 
-  function tick(now) {
-    frames++;
-    if (now - lastUpdate >= 500) { // update twice a second for stability and low overhead
-      const elapsed = now - lastUpdate;
-      const fps = Math.round((frames * 1000) / elapsed);
-      el.textContent = fps + ' FPS';
-      if (fps >= 50) el.style.color = '#7CFC00';
-      else if (fps >= 30) el.style.color = '#FFD700';
-      else el.style.color = '#FF4500';
-      frames = 0;
+  function update(now) {
+    frameCount++;
+    const sinceLast = now - lastUpdate;
+
+    // update displayed FPS every 500ms for stability
+    if (sinceLast >= 500) {
+      const fps = Math.round((frameCount * 1000) / sinceLast);
+      frameCount = 0;
       lastUpdate = now;
+      el.textContent = fps + ' FPS';
+
+      // color coding for quick visual feedback
+      if (fps >= 50) {
+        el.style.background = 'rgba(0,160,80,0.9)'; // green
+      } else if (fps >= 30) {
+        el.style.background = 'rgba(220,140,10,0.9)'; // amber
+      } else {
+        el.style.background = 'rgba(180,30,30,0.9)'; // red
+      }
     }
-    requestAnimationFrame(tick);
+
+    requestAnimationFrame(update);
   }
 
-  requestAnimationFrame(tick);
-
-  // Optional: toggle visibility with Shift+F (does not interfere with clicks/taps)
-  window.addEventListener('keydown', (e) => {
-    if (e.shiftKey && (e.key === 'F' || e.key === 'f')) el.classList.toggle('hidden');
-  });
+  requestAnimationFrame(update);
 })();
 </script>
 </body>

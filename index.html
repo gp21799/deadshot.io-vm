@@ -30,8 +30,8 @@
     line-height: 1;
     padding: 3px 6px;
     border-radius: 6px;
-    z-index: 2147483647; /* extremely high so it's above almost everything */
-    pointer-events: none; /* click-through */
+    z-index: 2147483647;
+    pointer-events: none; /* does not block clicks/taps */
     user-select: none;
     box-shadow: 0 1px 3px rgba(0,0,0,0.6);
     opacity: 0.95;
@@ -39,49 +39,118 @@
     letter-spacing: 0.4px;
   }
   #fps-counter.hidden { opacity: 0; pointer-events: none; }
+
+  /* Tiny fullscreen toggle button — small and unobtrusive */
+  #fs-btn {
+    position: fixed;
+    right: 8px;
+    bottom: 36px; /* above the FPS counter */
+    background: rgba(0,0,0,0.64);
+    color: #fff;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    font-size: 11px;
+    line-height: 1;
+    padding: 4px 6px;
+    border-radius: 6px;
+    z-index: 2147483647;
+    cursor: pointer;
+    user-select: none;
+    border: none;
+    pointer-events: auto;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    opacity: 0.9;
+  }
+  #fs-btn:active { transform: translateY(1px); }
 </style>
 </head>
 <body>
-<iframe src="https://deadshot.io" title="Deadshot.io Game"></iframe>
+<!-- allowfullscreen enables parent to request fullscreen for the iframe element -->
+<iframe id="game-frame" src="https://deadshot.io" title="Deadshot.io Game" allowfullscreen></iframe>
 
 <!-- Very small FPS counter; keeps overhead minimal -->
 <div id="fps-counter" aria-hidden="true">-- FPS</div>
+
+<!-- Small visible fullscreen toggle (won't block gameplay) -->
+<button id="fs-btn" aria-label="Toggle fullscreen">⤢</button>
+
 <script>
 (function(){
+  // FPS counter (non-blocking)
   const el = document.getElementById('fps-counter');
-  if (!el) return;
-
-  let lastUpdate = performance.now();
-  let frames = 0;
-
-  function tick(now) {
-    frames++;
-    // update every 500ms for a stable reading and low overhead
-    if (now - lastUpdate >= 500) {
-      const elapsed = now - lastUpdate;
-      const fps = Math.round((frames * 1000) / elapsed);
-      el.textContent = fps + ' FPS';
-      // color hint: green/yellow/red
-      if (fps >= 50) el.style.color = '#7CFC00';
-      else if (fps >= 30) el.style.color = '#FFD700';
-      else el.style.color = '#FF4500';
-      frames = 0;
-      lastUpdate = now;
+  if (el) {
+    let lastUpdate = performance.now();
+    let frames = 0;
+    function tick(now) {
+      frames++;
+      if (now - lastUpdate >= 500) {
+        const elapsed = now - lastUpdate;
+        const fps = Math.round((frames * 1000) / elapsed);
+        el.textContent = fps + ' FPS';
+        if (fps >= 50) el.style.color = '#7CFC00';
+        else if (fps >= 30) el.style.color = '#FFD700';
+        else el.style.color = '#FF4500';
+        frames = 0;
+        lastUpdate = now;
+      }
+      requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
+    // Toggle visibility with Shift+F
+    window.addEventListener('keydown', (e) => {
+      if (e.shiftKey && (e.key === 'F' || e.key === 'f')) el.classList.toggle('hidden');
+    });
   }
 
-  requestAnimationFrame(tick);
+  // Fullscreen toggle for the iframe element
+  const iframe = document.getElementById('game-frame');
+  const fsBtn = document.getElementById('fs-btn');
 
-  // Toggle visibility with Shift+F (does not steal focus)
-  window.addEventListener('keydown', (e) => {
-    if (e.shiftKey && (e.key === 'F' || e.key === 'f')) {
-      el.classList.toggle('hidden');
-    }
-  });
+  function isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+  }
 
-  // Optional: hide automatically on small viewports if you'd like
-  // if (window.innerWidth < 420) el.style.display = 'none';
+  function requestFsForIframe() {
+    if (!iframe) return;
+    const el = iframe;
+    if (el.requestFullscreen) return el.requestFullscreen();
+    if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
+    if (el.mozRequestFullScreen) return el.mozRequestFullScreen();
+    if (el.msRequestFullscreen) return el.msRequestFullscreen();
+  }
+
+  function exitFs() {
+    if (document.exitFullscreen) return document.exitFullscreen();
+    if (document.webkitExitFullscreen) return document.webkitExitFullscreen();
+    if (document.mozCancelFullScreen) return document.mozCancelFullScreen();
+    if (document.msExitFullscreen) return document.msExitFullscreen();
+  }
+
+  function toggleFS() {
+    if (isFullscreen()) exitFs();
+    else requestFsForIframe();
+  }
+
+  if (fsBtn) {
+    fsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleFS();
+    });
+    // Friendly UX: double-tap the button on touch devices
+    let lastTap = 0;
+    fsBtn.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      if (now - lastTap < 300) {
+        // quick double-tap
+        toggleFS();
+      }
+      lastTap = now;
+    }, {passive: true});
+  }
+
+  // NOTE on "tap anywhere" limitation:
+  // Because the game runs inside a cross-origin iframe, taps/clicks inside the iframe do NOT propagate to the parent page.
+  // That means the parent cannot detect taps inside the game to toggle fullscreen unless the iframe/game cooperates (e.g., by posting a message to the parent).
+  // If you control the game page, add a postMessage from it and I can add a parent listener to enter fullscreen on that message.
 })();
 </script>
 </body>

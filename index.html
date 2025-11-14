@@ -3,23 +3,114 @@
 <head>
 <meta charset="UTF-8">
 <title>Play Deadshot.io</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-body, html {
-margin: 0;
-padding: 0;
-height: 100%;
-width: 100%;
-overflow: hidden;
-}
-iframe {
-border: none;
-width: 100vw;
-height: 100vh;
-display: block;
-}
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background: #000;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  }
+
+  #frame-wrap {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  iframe {
+    border: none;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* Fullscreen hint / button overlay */
+  #fs-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none; /* allow clicks through overlay except the button */
+  }
+
+  #fs-button {
+    pointer-events: auto;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    border: 0;
+    padding: 12px 18px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+  }
+
+  /* Hide the button when in fullscreen */
+  :fullscreen #fs-overlay,
+  :-webkit-full-screen #fs-overlay {
+    display: none;
+  }
 </style>
 </head>
 <body>
-<iframe src="https://deadshot.io" title="Deadshot.io Game"></iframe>
+  <div id="frame-wrap">
+    <!-- allowfullscreen + allow="fullscreen" needed for cross-origin iframes to enter fullscreen -->
+    <iframe id="game-frame"
+      src="https://deadshot.io"
+      title="Deadshot.io Game"
+      allow="fullscreen; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowfullscreen>
+    </iframe>
+
+    <div id="fs-overlay" aria-hidden="false">
+      <button id="fs-button" aria-label="Enter fullscreen">Tap to go fullscreen</button>
+    </div>
+  </div>
+
+<script>
+(function () {
+  const iframe = document.getElementById('game-frame');
+  const btn = document.getElementById('fs-button');
+
+  function requestFullscreenOn(element) {
+    if (!element) return Promise.reject(new Error('No element'));
+    if (element.requestFullscreen) return element.requestFullscreen();
+    if (element.webkitRequestFullscreen) return element.webkitRequestFullscreen();
+    if (element.msRequestFullscreen) return element.msRequestFullscreen();
+    return Promise.reject(new Error('Fullscreen API is not supported'));
+  }
+
+  // Try to request fullscreen for the iframe element (user gesture required)
+  function enterFullscreen() {
+    // Some browsers require the element to be same-origin or have allowfullscreen attribute.
+    // We use the iframe element itself; if that fails, fall back to the documentElement.
+    requestFullscreenOn(iframe).catch(() => requestFullscreenOn(document.documentElement)).catch(err => {
+      console.warn('Fullscreen request failed:', err);
+      // you can show a message to the user here
+    });
+  }
+
+  // Handle click and touchend (touchend used so mobile taps register as user gesture)
+  btn.addEventListener('click', enterFullscreen);
+  btn.addEventListener('touchend', function (e) {
+    e.preventDefault();
+    enterFullscreen();
+  }, { passive: false });
+
+  // Keep the overlay hidden when fullscreen is activated by other means
+  function onFullscreenChange() {
+    // no-op here: CSS hides overlay when in fullscreen via :fullscreen
+  }
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+})();
+</script>
 </body>
 </html>

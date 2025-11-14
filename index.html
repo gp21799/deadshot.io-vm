@@ -4,267 +4,75 @@
 <meta charset="UTF-8">
 <title>Play Deadshot.io</title>
 <style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    width: 100%;
-    overflow: hidden;
-    background: #000;
-  }
-  iframe {
-    border: none;
-    width: 100vw;
-    height: 100vh;
-    display: block;
-    position: relative;
-    z-index: 0;
-  }
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+iframe {
+  border: none;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+}
 
-  /* Tiny FPS counter (bottom-right) */
-  #fps-counter {
-    position: fixed;
-    right: 8px;
-    bottom: 8px;
-    background: rgba(0,0,0,0.64);
-    color: #7CFC00;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
-    font-size: 11px;
-    line-height: 1;
-    padding: 4px 7px;
-    border-radius: 6px;
-    z-index: 999999999; /* very high to ensure it's above iframe */
-    pointer-events: none; /* does not block clicks/taps */
-    user-select: none;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.6);
-    opacity: 0.95;
-    transition: opacity 0.12s ease;
-    transform: translateZ(0); /* promote to its own layer */
-  }
-  #fps-counter.hidden { opacity: 0; pointer-events: none; }
-
-  /* Tiny fullscreen toggle button — small and unobtrusive */
-  #fs-btn {
-    position: fixed;
-    right: 8px;
-    bottom: 42px; /* above the FPS counter */
-    background: rgba(0,0,0,0.72);
-    color: #fff;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-    font-size: 12px;
-    line-height: 1;
-    padding: 4px 6px;
-    border-radius: 6px;
-    z-index: 999999999;
-    cursor: pointer;
-    user-select: none;
-    border: none;
-    pointer-events: auto;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.6);
-    opacity: 0.95;
-  }
-  #fs-btn:active { transform: translateY(1px); }
-
-  /* Tiny status toast for FS errors (bottom-center) */
-  #fs-toast {
-    position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: 16px;
-    background: rgba(255,255,255,0.9);
-    color: #000;
-    font-size: 12px;
-    padding: 6px 10px;
-    border-radius: 8px;
-    z-index: 999999999;
-    display: none;
-    user-select: none;
-  }
+/* Very small FPS counter (bottom-right) */
+#fps-counter {
+  position: fixed;
+  right: 8px;
+  bottom: 8px;
+  background: rgba(0,0,0,0.56);
+  color: #7CFC00;
+  font-family: monospace;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  z-index: 2147483647; /* ensure it's above other content */
+  pointer-events: none; /* don't block taps/clicks */
+  user-select: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  opacity: 0.92;
+  transition: opacity .2s;
+  line-height: 1;
+}
+#fps-counter.hidden { opacity: 0; pointer-events: none; }
 </style>
 </head>
 <body>
-<!-- allow and allowfullscreen help with fullscreen requests on modern browsers -->
-<iframe id="game-frame" src="https://deadshot.io" title="Deadshot.io Game" allow="fullscreen; autoplay" allowfullscreen></iframe>
+<iframe src="https://deadshot.io" title="Deadshot.io Game"></iframe>
 
+<!-- Added: very small FPS counter. No other behavior or fullscreen code changed. -->
 <div id="fps-counter" aria-hidden="true">-- FPS</div>
-<button id="fs-btn" aria-label="Toggle fullscreen" title="Toggle fullscreen">⤢</button>
-<div id="fs-toast" role="status" aria-live="polite"></div>
-
 <script>
 (function(){
-  // Utility: show a short toast (for errors or info)
-  function showToast(msg, ms = 2000) {
-    const t = document.getElementById('fs-toast');
-    if (!t) return;
-    t.textContent = msg;
-    t.style.display = 'block';
-    clearTimeout(t._timeout);
-    t._timeout = setTimeout(() => { t.style.display = 'none'; }, ms);
-  }
+  const el = document.getElementById('fps-counter');
+  if (!el) return;
 
-  // Ensure DOM elements exist
-  const iframe = document.getElementById('game-frame');
-  const fpsEl = document.getElementById('fps-counter');
-  const fsBtn = document.getElementById('fs-btn');
+  let lastUpdate = performance.now();
+  let frames = 0;
 
-  // --- FPS counter (rAF with fallback) ---
-  (function initFPS() {
-    if (!fpsEl) return;
-    let frames = 0;
-    let lastTime = performance.now();
-    let lastUpdate = lastTime;
-    let lastFPS = 0;
-    let rAFActive = false;
-
-    function rafTick(now) {
-      rAFActive = true;
-      frames++;
-      if (now - lastUpdate >= 250) { // update every 250ms for responsiveness
-        const elapsed = now - lastUpdate;
-        lastFPS = Math.round((frames * 1000) / elapsed);
-        fpsEl.textContent = lastFPS + ' FPS';
-        if (lastFPS >= 50) fpsEl.style.color = '#7CFC00';
-        else if (lastFPS >= 30) fpsEl.style.color = '#FFD700';
-        else fpsEl.style.color = '#FF4500';
-        frames = 0;
-        lastUpdate = now;
-      }
-      lastTime = now;
-      requestAnimationFrame(rafTick);
-    }
-
-    try {
-      requestAnimationFrame(rafTick);
-    } catch (e) {
-      rAFActive = false;
-    }
-
-    // Fallback: if rAF is not updating (very rare), use setInterval to poll
-    const fallback = setInterval(() => {
-      if (rAFActive) { clearInterval(fallback); return; }
-      // approximate using time difference
-      const now = performance.now();
+  function tick(now) {
+    frames++;
+    if (now - lastUpdate >= 500) { // update twice a second for stability and low overhead
       const elapsed = now - lastUpdate;
-      if (elapsed > 0) {
-        // Use frames (might be zero) to compute something meaningful
-        const approx = Math.max(1, Math.round((frames * 1000) / Math.max(1, elapsed)));
-        fpsEl.textContent = approx + ' FPS';
-      } else {
-        fpsEl.textContent = '-- FPS';
-      }
-    }, 500);
-
-    // Allow toggling via Shift+F
-    window.addEventListener('keydown', (e) => {
-      if (e.shiftKey && (e.key === 'F' || e.key === 'f')) fpsEl.classList.toggle('hidden');
-    });
-  })();
-
-  // --- Fullscreen toggle for the iframe element ---
-  function isFullscreen() {
-    return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
-  }
-
-  function requestFsForElement(el) {
-    if (!el) return Promise.reject(new Error('No element'));
-    // Use the best available API
-    if (el.requestFullscreen) return el.requestFullscreen();
-    if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
-    if (el.mozRequestFullScreen) return el.mozRequestFullScreen();
-    if (el.msRequestFullscreen) return el.msRequestFullscreen();
-    return Promise.reject(new Error('Fullscreen API not supported'));
-  }
-
-  function exitFs() {
-    if (document.exitFullscreen) return document.exitFullscreen();
-    if (document.webkitExitFullscreen) return document.webkitExitFullscreen();
-    if (document.mozCancelFullScreen) return document.mozCancelFullScreen();
-    if (document.msExitFullscreen) return document.msExitFullscreen();
-    return Promise.reject(new Error('Exit fullscreen not supported'));
-  }
-
-  function toggleFS() {
-    if (isFullscreen()) {
-      exitFs().catch(err => {
-        console.warn('Exit fullscreen failed:', err);
-        showToast('Could not exit fullscreen');
-      });
-    } else {
-      // Request fullscreen for the iframe element (user gesture required)
-      requestFsForElement(iframe).catch((err) => {
-        // Common reasons: user gesture missing or browser blocking cross-origin fullscreen in some cases.
-        console.warn('Request fullscreen failed:', err);
-        showToast('Fullscreen failed (browser may require a direct user gesture)');
-      });
+      const fps = Math.round((frames * 1000) / elapsed);
+      el.textContent = fps + ' FPS';
+      if (fps >= 50) el.style.color = '#7CFC00';
+      else if (fps >= 30) el.style.color = '#FFD700';
+      else el.style.color = '#FF4500';
+      frames = 0;
+      lastUpdate = now;
     }
+    requestAnimationFrame(tick);
   }
 
-  if (fsBtn) {
-    // click handler (counts as user gesture)
-    fsBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      toggleFS();
-    });
+  requestAnimationFrame(tick);
 
-    // friendly touch handling for mobile: single tap toggles FS
-    fsBtn.addEventListener('touchend', (e) => {
-      e.stopPropagation();
-      toggleFS();
-    }, {passive: true});
-
-    // reflect fullscreen state in button title
-    document.addEventListener('fullscreenchange', () => {
-      if (isFullscreen()) {
-        fsBtn.textContent = '⤫'; // show "exit"
-        fsBtn.title = 'Exit fullscreen';
-      } else {
-        fsBtn.textContent = '⤢'; // show "enter"
-        fsBtn.title = 'Enter fullscreen';
-      }
-    });
-  }
-
-  // Debug/compat: Log permissions and show short hint if fullscreen is restricted
-  (function checkFullscreenSupport() {
-    // If requestFullscreen exists but fails repeatedly, user will see toast from catch.
-    const supports = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled || document.mozFullScreenEnabled || document.msFullscreenEnabled);
-    if (!supports) {
-      console.info('Fullscreen not supported by this browser.');
-      // We don't show a persistent message to the user to avoid clutter.
-    }
-  })();
-
-  // Note: To enable "tap anywhere inside the game to toggle fullscreen", the iframe content must postMessage()
-  // to the parent (e.g., window.parent.postMessage({type:'request-fullscreen'}, '*')) on user tap inside the iframe.
-  // If you control the iframe content, add a small postMessage client and the parent can listen for it:
-  // window.addEventListener('message', (ev) => { if (ev.data && ev.data.type === 'request-fullscreen') toggleFS(); });
-  // We do not add an invisible overlay because that would block game input.
-
-  // Optional: listen for postMessage requests from the iframe (safe pattern)
-  window.addEventListener('message', (ev) => {
-    try {
-      const d = ev.data;
-      if (!d) return;
-      if (d && d.type === 'request-fullscreen') {
-        // Extra check: ensure the message comes from the expected origin (if you want to restrict)
-        // Example: if (ev.origin !== 'https://deadshot.io') return;
-        toggleFS();
-      }
-      if (d && d.type === 'show-toast' && typeof d.msg === 'string') {
-        showToast(d.msg, 2000);
-      }
-    } catch (e) {
-      // ignore malformed messages
-    }
-  }, false);
-
-  // Small safeguard: make sure fps/button are on top after load (in case iframe or other content manipulates z-index)
-  window.addEventListener('load', () => {
-    // re-apply very high z-index
-    if (fpsEl) fpsEl.style.zIndex = '999999999';
-    if (fsBtn) fsBtn.style.zIndex = '999999999';
-    const t = document.getElementById('fs-toast');
-    if (t) t.style.zIndex = '999999999';
+  // Optional: toggle visibility with Shift+F (does not interfere with clicks/taps)
+  window.addEventListener('keydown', (e) => {
+    if (e.shiftKey && (e.key === 'F' || e.key === 'f')) el.classList.toggle('hidden');
   });
 })();
 </script>
